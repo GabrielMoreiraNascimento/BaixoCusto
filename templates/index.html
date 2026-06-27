@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baixo Custo - Comparador</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8fafc; color: #0f172a; }
+
+        /* ===== LOADING OVERLAY ===== */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+        }
+        #loading-overlay.ativo {
+            display: flex;
+            animation: fadeInOverlay 0.25s ease;
+        }
+        @keyframes fadeInOverlay {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        .loading-card {
+            background: #fff;
+            border-radius: 28px;
+            padding: 44px 52px;
+            text-align: center;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.22);
+            max-width: 380px;
+            width: 90%;
+            animation: slideUpCard 0.3s cubic-bezier(.22,.68,0,1.2);
+        }
+        @keyframes slideUpCard {
+            from { transform: translateY(30px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+
+        /* Robot bounce */
+        .robot-icon {
+            font-size: 3.2rem;
+            display: inline-block;
+            animation: robotBounce 0.9s ease-in-out infinite alternate;
+            margin-bottom: 8px;
+        }
+        @keyframes robotBounce {
+            from { transform: translateY(0)   rotate(-4deg); }
+            to   { transform: translateY(-10px) rotate(4deg); }
+        }
+
+        /* Circular spinner */
+        .spinner-ring {
+            width: 52px;
+            height: 52px;
+            border: 4px solid #e0e7ff;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spinRing 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spinRing {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Progress bar */
+        .progress-bar-track {
+            width: 100%;
+            height: 6px;
+            background: #e0e7ff;
+            border-radius: 99px;
+            overflow: hidden;
+            margin-top: 22px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #6366f1, #4f46e5, #818cf8);
+            border-radius: 99px;
+            animation: progressFill 150s cubic-bezier(0.1, 0.4, 0.8, 1) forwards;
+        }
+        @keyframes progressFill {
+            0%   { width: 0%; }
+            30%  { width: 45%; }
+            65%  { width: 72%; }
+            90%  { width: 88%; }
+            100% { width: 95%; }
+        }
+
+        .loading-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #1e1b4b;
+            margin-bottom: 6px;
+        }
+        .loading-subtitle {
+            font-size: 0.82rem;
+            color: #6b7280;
+            min-height: 20px;
+            transition: opacity 0.4s;
+        }
+        .loading-stores {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+        .store-badge {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 8px;
+            border: 1.5px solid;
+            animation: pulseBadge 1.4s ease-in-out infinite alternate;
+        }
+        .store-badge:nth-child(1) { background:#fff7ed; color:#c2410c; border-color:#fed7aa; animation-delay: 0s; }
+        .store-badge:nth-child(2) { background:#fef2f2; color:#b91c1c; border-color:#fecaca; animation-delay: 0.2s; }
+        .store-badge:nth-child(3) { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; animation-delay: 0.4s; }
+        .store-badge:nth-child(4) { background:#f0fdf4; color:#166534; border-color:#bbf7d0; animation-delay: 0.6s; }
+        .store-badge:nth-child(5) { background:#fefce8; color:#854d0e; border-color:#fef08a; animation-delay: 0.8s; }
+        @keyframes pulseBadge {
+            from { opacity: 0.55; transform: scale(0.97); }
+            to   { opacity: 1;    transform: scale(1.03); }
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen">
+
+    <!-- ===== LOADING OVERLAY ===== -->
+    <div id="loading-overlay" role="status" aria-live="polite" aria-label="A pesquisar produtos">
+        <div class="loading-card">
+            <div class="spinner-ring"></div>
+            <div class="robot-icon">🤖</div>
+            <p class="loading-title">A pesquisar os melhores preços...</p>
+            <p class="loading-subtitle" id="loading-msg">A iniciar os robôs de pesquisa</p>
+            <div class="loading-stores">
+                <span class="store-badge">PCDiga</span>
+                <span class="store-badge">Worten</span>
+                <span class="store-badge">Globaldata</span>
+                <span class="store-badge">Kuantokusta</span>
+                <span class="store-badge">Amazon</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-indigo-600 text-2xl"></i>
+                <span class="text-xl font-black tracking-wider text-indigo-900">BAIXO CUSTO</span>
+            </div>
+            
+            <div class="flex items-center gap-4 text-sm font-semibold">
+                {% if session.get('user_id') %}
+                    <span class="text-gray-600"><i class="fa-solid fa-user text-indigo-500 mr-1"></i> {{ session['user_nome'] }}</span>
+                    <a href="/logout" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl transition-all border border-red-200 shadow-sm">Sair</a>
+                {% else %}
+                    <a href="/login" class="text-gray-600 hover:text-indigo-600 transition-colors">Entrar</a>
+                    <a href="/registo" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-all shadow-md">Criar Conta</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for categoria, msg in messages %}
+                <div class="mb-6 p-4 rounded-xl text-center font-semibold shadow-sm border {{ 'bg-green-100 text-green-700 border-green-200' if categoria == 'sucesso' else 'bg-red-100 text-red-700 border-red-200' }}">
+                    {{ msg }}
+                </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="text-center max-w-2xl mx-auto mb-12">
+            <h1 class="text-4xl font-extrabold sm:text-5xl tracking-tight mb-4 text-gray-900">
+                Pesquisa uma vez. <br>
+                <span class="text-indigo-600">Compra pelo melhor preço.</span>
+            </h1>
+            
+            <form action="/" method="POST" class="relative group" id="form-pesquisa">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </div>
+                <input type="text" name="nome_produto" placeholder="O que procuras economizar hoje?" 
+                       value="{{ termo_pesquisado if termo_pesquisado else '' }}" required
+                       class="w-full bg-white border border-gray-300 rounded-2xl pl-12 pr-32 py-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-sm">
+                <button type="submit" id="btn-pesquisa" class="absolute inset-y-2 right-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 rounded-xl transition-all shadow-md flex items-center gap-2 text-sm">
+                    <span id="btn-texto">Pesquisar</span>
+                    <i id="btn-icone" class="fa-solid fa-arrow-right text-xs"></i>
+                </button>
+            </form>
+        </div>
+
+        {% if termo_pesquisado %}
+            <div class="mb-6 flex items-center justify-between border-b border-gray-200 pb-4">
+                <p class="text-sm text-gray-500">Resultados para: <span class="text-gray-900 font-semibold">"{{ termo_pesquisado }}"</span></p>
+            </div>
+
+            {% if resultados %}
+                {% if grupos %}
+                    <a href="{{ grupos[0].link_mais_barato }}" target="_blank" class="block bg-white border-2 border-indigo-100 rounded-3xl p-6 mb-10 overflow-hidden shadow-lg hover:shadow-xl hover:border-indigo-300 transition-all group">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div class="flex items-center gap-6">
+                                <div class="w-24 h-24 flex-shrink-0 bg-white rounded-xl border border-gray-100 p-2 shadow-sm flex items-center justify-center overflow-hidden">
+                                    <img src="{{ grupos[0].imagem }}" alt="Produto" class="max-h-full max-w-full object-contain mix-blend-multiply">
+                                </div>
+                                <div>
+                                    <span class="text-xs uppercase font-extrabold tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">MELHOR PRECO</span>
+                                    <h2 class="text-xl font-bold mt-2 text-gray-900 group-hover:text-indigo-600 transition-colors">{{ grupos[0].nome }}</h2>
+                                    <p class="text-sm text-gray-500 mt-1">Disponivel em: <span class="font-semibold text-gray-700">{{ grupos[0].num_lojas }} loja{{ 's' if grupos[0].num_lojas > 1 }}</span></p>
+                                </div>
+                            </div>
+                            <div class="text-right flex-shrink-0 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                <span class="text-xs text-gray-500 block">desde</span>
+                                <span class="text-3xl font-black text-gray-900">{{ grupos[0].preco_desde }}</span>
+                            </div>
+                        </div>
+                    </a>
+                {% endif %}
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2">
+                        <h3 class="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2"><i class="fa-solid fa-tags text-indigo-500"></i> Produtos Encontrados</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {% for g in grupos %}
+                                <a href="{{ g.link_mais_barato }}" target="_blank" class="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300 group">
+                                    <div>
+                                        <div class="flex items-center justify-between mb-4">
+                                            <span class="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-md">{{ g.num_lojas }} loja{{ 's' if g.num_lojas > 1 }}</span>
+                                            <span class="text-[11px] text-gray-400 group-hover:text-indigo-500">Comparar precos <i class="fa-solid fa-arrow-up-right-from-square"></i></span>
+                                        </div>
+                                        <div class="w-full h-32 mb-4 flex items-center justify-center">
+                                            <img src="{{ g.imagem }}" alt="Produto" class="max-h-full max-w-full object-contain mix-blend-multiply">
+                                        </div>
+                                        <h4 class="text-sm font-semibold text-gray-800 line-clamp-2 group-hover:text-indigo-600">{{ g.nome }}</h4>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-4 mt-4">
+                                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                            {% for loja in g.lojas %}
+                                                <span onclick="event.stopPropagation(); window.open('{{ g.lojas_links[loja] }}', '_blank')"
+                                                   class="text-[9px] font-bold uppercase px-2 py-1 rounded border transition-all cursor-pointer hover:scale-110 hover:shadow-md
+                                                   {% if loja == 'PCDiga' %}bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-500 hover:text-white hover:border-orange-500
+                                                   {% elif loja == 'Worten' %}bg-red-50 text-red-600 border-red-200 hover:bg-red-500 hover:text-white hover:border-red-500
+                                                   {% else %}bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-500 hover:text-white hover:border-blue-500{% endif %}">{{ loja }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs text-gray-500">desde</span>
+                                            <span class="text-xl font-extrabold text-indigo-600">{{ g.preco_desde }}</span>
+                                        </div>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        {% if historico %}
+                            <div class="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
+                                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-line text-indigo-500"></i> Tendência</h3>
+                                <div class="w-full bg-gray-50 p-2 rounded-xl border border-gray-100"><canvas id="graficoPrecos" class="w-full h-48"></canvas></div>
+                            </div>
+                        {% endif %}
+
+                        <div class="bg-indigo-600 rounded-3xl p-6 shadow-md text-white">
+                            <h3 class="text-lg font-bold mb-2 flex items-center gap-2"><i class="fa-solid fa-bell"></i> Criar Alerta de Preço</h3>
+                            
+                            {% if session.get('user_id') %}
+                                <p class="text-xs text-indigo-200 mb-4">Iremos monitorizar o mercado para a tua conta ({{ session['user_email'] }}).</p>
+                                <form action="/alerta" method="POST" class="space-y-3">
+                                    <input type="hidden" name="termo" value="{{ termo_pesquisado }}">
+                                    <div>
+                                        <input type="number" name="preco_alvo" placeholder="Preço alvo em Euros (ex: 340)" step="0.01" required class="w-full text-sm text-gray-900 px-4 py-2 rounded-lg border-0 focus:ring-2 focus:ring-indigo-300">
+                                    </div>
+                                    <button type="submit" class="w-full bg-indigo-800 hover:bg-indigo-900 text-white font-bold py-2 rounded-lg transition-colors text-sm shadow-sm">
+                                        Ativar Alerta Inteligente
+                                    </button>
+                                </form>
+                            {% else %}
+                                <p class="text-sm text-indigo-100 mb-4">Precisas de ter uma conta para ativar a monitorização e receber notificações.</p>
+                                <a href="/login" class="block text-center w-full bg-white hover:bg-indigo-50 text-indigo-600 font-bold py-2 rounded-lg transition-colors text-sm shadow-sm">Iniciar Sessão / Criar Conta</a>
+                            {% endif %}
+                        </div>
+                        
+                    </div>
+                </div>
+
+            {% else %}
+                <div class="text-center py-20 max-w-md mx-auto bg-white border border-red-100 rounded-3xl shadow-sm mt-8">
+                    <div class="w-16 h-16 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-6">
+                        <i class="fa-solid fa-robot text-2xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">Sem resultados válidos</h3>
+                    <p class="text-gray-500 text-sm px-6">Não encontrámos ofertas para o termo procurado.</p>
+                </div>
+            {% endif %}
+        {% endif %}
+    </main>
+
+    {% if historico and grupos %}
+    <script>
+        new Chart(document.getElementById('graficoPrecos').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ chart_datas | tojson }},
+                datasets: [{
+                    data: {{ chart_precos | tojson }},
+                    borderColor: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    borderWidth: 2, tension: 0.3, pointBackgroundColor: '#4f46e5', pointRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    </script>
+    {% endif %}
+
+    <script>
+        /* ===== SERVICE WORKER ===== */
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker Registado!', reg))
+                    .catch(err => console.error('Falha no registo do Service Worker', err));
+            });
+        }
+
+        /* ===== LOADING ANIMATION ===== */
+        (function () {
+            const form       = document.getElementById('form-pesquisa');
+            const overlay    = document.getElementById('loading-overlay');
+            const btnPesquisa = document.getElementById('btn-pesquisa');
+            const btnTexto   = document.getElementById('btn-texto');
+            const btnIcone   = document.getElementById('btn-icone');
+            const msgEl      = document.getElementById('loading-msg');
+
+            if (!form || !overlay) return;
+
+            // Mensagens rotativas que aparecem durante o loading
+            const mensagens = [
+                'A iniciar os robôs de pesquisa...',
+                'A varrer a PCDiga...',
+                'A verificar ofertas na Worten...',
+                'A analisar preços na Globaldata...',
+                'A comparar todos os resultados...',
+                'Quase pronto! A ordenar por preço...',
+            ];
+            let msgIndex = 0;
+            let msgTimer = null;
+
+            function rodarMensagem() {
+                msgIndex = (msgIndex + 1) % mensagens.length;
+                msgEl.style.opacity = '0';
+                setTimeout(() => {
+                    msgEl.textContent = mensagens[msgIndex];
+                    msgEl.style.opacity = '1';
+                }, 400);
+            }
+
+            function mostrarLoading() {
+                // Mostrar overlay
+                overlay.classList.add('ativo');
+
+                // Desativar botão para evitar cliques duplicados
+                btnPesquisa.disabled = true;
+                btnTexto.textContent = 'A pesquisar...';
+                btnIcone.className = 'fa-solid fa-spinner fa-spin text-xs';
+
+                // Iniciar rotação de mensagens de estado
+                msgEl.textContent = mensagens[0];
+                msgTimer = setInterval(rodarMensagem, 4500);
+
+                // Reiniciar a barra de progresso
+                const fill = document.getElementById('progress-fill');
+                if (fill) {
+                    fill.style.animation = 'none';
+                    // Forçar reflow para reiniciar a animação CSS
+                    void fill.offsetWidth;
+                    fill.style.animation = 'progressFill 150s cubic-bezier(0.1, 0.4, 0.8, 1) forwards';
+                }
+            }
+
+            function esconderLoading() {
+                overlay.classList.remove('ativo');
+                if (msgTimer) clearInterval(msgTimer);
+                btnPesquisa.disabled = false;
+                btnTexto.textContent = 'Pesquisar';
+                btnIcone.className = 'fa-solid fa-arrow-right text-xs';
+            }
+
+            // Interceta o submit do formulário
+            form.addEventListener('submit', function (e) {
+                const input = form.querySelector('input[name="nome_produto"]');
+                if (input && input.value.trim() !== '') {
+                    mostrarLoading();
+                    // O loading esconde-se automaticamente quando o Flask responde
+                    // e a página é recarregada. Mas se algo falhar (ex: botão back),
+                    // garantimos que o overlay desaparece.
+                    window.addEventListener('pageshow', esconderLoading, { once: true });
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
